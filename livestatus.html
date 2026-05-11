@@ -161,6 +161,9 @@
                 <div style="font-size:1.4rem; font-weight:700; letter-spacing:1px;" id="awb-display">Loading...</div>
             </div>
 
+            <!-- Pincode Info -->
+            <div id="pincode-info" style="margin-top:10px; font-size:0.85rem; color:#67e8f9;"></div>
+
             <!-- Instruction Only for Delhivery -->
             <div class="delhivery-instruction" id="delhivery-msg">
                 Type <strong>1</strong> in Postcode box and Confirm to check live tracking
@@ -183,14 +186,26 @@
         const pin = params.get('pin');
         const phone = params.get('phone');
 
+        // Default Pincode
+        const defaultPincode = "324001";
+        const finalPincode = pin ? pin : defaultPincode;
+
         if (!awb) {
             document.querySelector('.info-card').innerHTML = "<div style='text-align:center; padding:20px;'>❌ No tracking number provided.</div>";
             document.getElementById('YQContainer').style.display = 'none';
         } else {
             document.getElementById('awb-display').textContent = awb;
-            if (name) document.getElementById('cust-name').textContent = `👤 ${decodeURIComponent(name)}`;
-            if (pin && phone) document.getElementById('cust-meta').textContent = `📍 ${pin} &nbsp;|&nbsp; 📞 ${phone}`;
             
+            if (name) document.getElementById('cust-name').textContent = `👤 ${decodeURIComponent(name)}`;
+            if (pin && phone) {
+                document.getElementById('cust-meta').innerHTML = `📍 ${pin} &nbsp;|&nbsp; 📞 ${phone}`;
+            } else if (phone) {
+                document.getElementById('cust-meta').innerHTML = `📞 ${phone} &nbsp;|&nbsp; 📍 ${finalPincode} (Default)`;
+            }
+
+            // Show which pincode is being used
+            document.getElementById('pincode-info').innerHTML = `📌 Using Pincode: <strong>${finalPincode}</strong> ${pin ? '' : '(Default)'}`;
+
             if (photo) {
                 document.getElementById('parcel-photo').src = decodeURIComponent(photo);
                 document.getElementById('dl-link').href = decodeURIComponent(photo);
@@ -200,26 +215,20 @@
             function getCarrierCode(trackingNum) {
                 const num = trackingNum.toUpperCase().trim();
 
-                // DTDC
                 if (num.startsWith('D') || num.startsWith('W') || num.startsWith('X') || num.startsWith('U')) {
                     document.getElementById('carrier-info').textContent = 'Carrier: DTDC';
                     return "100069";
                 }
-
-                // Trackon - Multiple prefixes
                 if (num.startsWith('5006') || num.startsWith('1003')) {
                     document.getElementById('carrier-info').textContent = 'Carrier: Trackon';
                     return "100180";
                 }
-
-                // Delhivery
                 if (num.startsWith('356') || num.startsWith('19')) {
                     document.getElementById('carrier-info').textContent = 'Carrier: Delhivery';
                     document.getElementById('delhivery-msg').style.display = 'block';
                     return "100060";
                 }
 
-                // Default - Auto detect
                 document.getElementById('carrier-info').textContent = 'Carrier: Detecting...';
                 return "0";
             }
@@ -229,21 +238,20 @@
                     document.getElementById('YQContainer').innerHTML = '';
                     const carrierCode = getCarrierCode(awb);
 
-                    YQV5.trackSingle({
+                    const options = {
                         YQ_ContainerId: "YQContainer",
                         YQ_Height: 650,
                         YQ_Lang: "en",
                         YQ_Num: awb,
                         YQ_Fc: carrierCode
-                    });
-                } else if (typeof YQ511 !== 'undefined') {
-                     // Fallback to older version if V5 is not available yet
-                     YQ511.trackSingle({
-                        YQ_ContainerId: "YQContainer",
-                        YQ_Height: 650,
-                        YQ_Lang: "en",
-                        YQ_Num: awb
-                    });
+                    };
+
+                    // Pass pincode to 17Track (helps reduce "Unknown" status)
+                    if (finalPincode) {
+                        options.YQ_Extra = finalPincode;
+                    }
+
+                    YQV5.trackSingle(options);
                 } else {
                     setTimeout(initTracking, 400);
                 }
